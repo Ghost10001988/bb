@@ -94,9 +94,6 @@ class BBVisual():
     
 class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
     def on_init(self):
-        self.sprite = pyglet.sprite.Sprite(pyglet.resource.image("logo.png"))
-        self.label = pyglet.text.Label(
-            text="This is a pyglet label rendered in a Qt widget :)")
         self.setMinimumSize(QtCore.QSize(800, 600))
         self.bbvis = BBVisual()
         self.mode = 0
@@ -105,8 +102,7 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
 
     def on_draw(self):
         self.frame += 1
-        self.sprite.draw()
-        self.label.draw()
+
         t=sin(self.frame/30.0)
 
         q0 = t*.2;
