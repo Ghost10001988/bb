@@ -21,7 +21,7 @@ class BBVisual():
         self.l_board = .5;
         self.h_body = .6;
         self.zero = np.array([0.,0,0])
-        self.unit_y = np.array([0.,.1,0])
+        self.unit_y = np.array([0.,.2,0])
 
     def draw_model(self, bbmdl, q):
         mdl = bbmdl.model
@@ -31,19 +31,24 @@ class BBVisual():
         draw_line(pt0[0:2], (0,0))
         
         gl.glColor3f(0,1,0)
-        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero)
-        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.unit_y)
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.unit_y, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
 
 
         gl.glColor3f(0,0,1)
-        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero)
-        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero)
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
 
+        gl.glColor3f(1,.5,0)
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, np.array([-self.l_board/2,self.r_roller,0]), update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, np.array([self.l_board/2,self.r_roller,0]), update_kinematics = False)
+        draw_line(pt0[0:2], pt1[0:2])
+        
         gl.glColor3f(1,0,0)
-        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero)
-        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.unit_y)
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.unit_y, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
         
     def draw(self, state = [0,0,0]):
@@ -61,26 +66,28 @@ class BBVisual():
         gl.glColor3f(0,0,0)
         gl.glLineWidth(3)
         
-        gl.glPushMatrix()
+#        gl.glPushMatrix()
         gl.glRotatef(-R2D*state[0],0,0,1)
         draw_mass_center(self.r_roller, (0,0))
-        gl.glPopMatrix()
+#        gl.glPopMatrix()
 
         gl.glRotatef(-R2D*state[1], 0, 0, 1)
+
         gl.glTranslatef(0,self.r_roller,0)
-        gl.glColor3f(.7,.2,.2)
+        
         gl.glPushMatrix()
-        gl.glRotatef(R2D*state[1],0,0,1)
-        
-        gl.glPushAttrib(gl.GL_ENABLE_BIT); 
-        gl.glLineStipple(1, 0xF00F);  # [1]
-        gl.glEnable(gl.GL_LINE_STIPPLE);
+        gl.glRotatef(R2D*(state[1]+state[0]),0,0,1)
+        gl.glPushAttrib(gl.GL_ENABLE_BIT);
+        gl.glColor3f(.7,.2,.2)
+        gl.glLineStipple(1, 0xF00F)  # [1]
+        gl.glEnable(gl.GL_LINE_STIPPLE)
         draw_line((0,0),(0,1))
-        gl.glPopAttrib();
-        
+        gl.glPopAttrib()
         gl.glPopMatrix()
-        gl.glColor3f(0,0,0)
-        gl.glTranslatef(state[0]*self.r_roller,0,0)
+        
+        gl.glTranslatef(-state[1] * self.r_roller,0,0)
+        
+        gl.glColor3f(0,0,0)        
         draw_rect( (-self.l_board/2,0), (self.l_board/2,.02))
         gl.glColor3f(.5,.5,.5)
         draw_rect((-.01,0), (.01,self.h_body))
@@ -89,7 +96,7 @@ class BBVisual():
         gl.glRotatef(-R2D*state[2], 0, 0, 1)
         gl.glColor3f(0,0,0);
         draw_mass_center(.1, (0,0))
-        
+
         gl.glPopMatrix();
     
 class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
@@ -103,18 +110,23 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
     def on_draw(self):
         self.frame += 1
 
-        t=sin(self.frame/30.0)
+        t=sin(self.frame/60.0)
 
         q0 = t*.2;
         h = self.bbvis.h_body;
         r = self.bbvis.r_roller;
         
         if(self.mode == 0):
-            self.bbvis.draw((q0/r, -q0/h, q0/h))
+            s = (q0/r, -q0/h-q0/r, q0/h)
+#            s = (q0*30,0,0)
+            self.bbvis.draw(s)
+            self.bbvis.draw_model(self.bbmdl, np.array(s))
         elif(self.mode == 1):
-            self.bbvis.draw((q0/r, 2*-q0/(h+2*r), 4*q0/h))
+            s = (q0/r, 2*-q0/(h+2*r)-q0/r, 4*q0/h)
+            self.bbvis.draw(s)
+            self.bbvis.draw_model(self.bbmdl, np.array(s))
         elif(self.mode == 2):
-            self.bbmdl.integrate(self.q,self.qdot,np.zeros(2), 1/30.0)
+            self.bbmdl.integrate(self.q,self.qdot,np.zeros(2), 1/100.0)
             self.bbvis.draw([self.q[0], self.q[1], 0])
             self.bbvis.draw_model(self.bbmdl, self.q)
 
@@ -130,7 +142,7 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
         gl.glMatrixMode(gl.GL_MODELVIEW)
 
     def reset_sim(self):
-        self.q = np.array([0,0.1])
+        self.q = np.array([1,-1.])
         self.qdot = np.array([0.,0])
 
 
