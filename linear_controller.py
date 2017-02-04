@@ -7,4 +7,5 @@ class LinearController():
         self.u0 = u0
 
     def computeU(self, q, tau):
-        tau = -self.K.dot(q - self.q0) + self.u0
+        u = -self.K.dot(q - self.q0) + self.u0
+        np.copyto(tau, u)

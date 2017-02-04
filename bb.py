@@ -12,6 +12,9 @@ from graphics import *
 import time
 from bbrbdl import BBModel
 import rbdl
+import queue
+from queue import Empty
+import system_model
 
 R2D = 360/(2*pi)
 
@@ -50,6 +53,9 @@ class BBVisual():
         pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero, update_kinematics = False)
         pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.unit_y, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
+
+        com = np.array([-1.0,-1,-1.])
+        draw_mass_center( .1, com[0:2] )
         
     def draw(self, state = [0,0,0]):
         gl.glLoadIdentity()
@@ -103,32 +109,45 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
     def on_init(self):
         self.setMinimumSize(QtCore.QSize(800, 600))
         self.bbvis = BBVisual()
-        self.mode = 0
+        self.mode = 'simulate'
         self.frame = 0
         self.bbmdl = BBModel()
+        self.reset_sim()
 
     def on_draw(self):
+        if not self.queue is None:
+            try:
+                self.repl_state = self.queue.get_nowait()
+                self.mode = 'repl'
+                self.queue.task_done()
+            except Empty:
+                pass
+            
         self.frame += 1
-
-        t=sin(self.frame/60.0)
-
-        q0 = t*.2;
-        h = self.bbvis.h_body;
-        r = self.bbvis.r_roller;
         
-        if(self.mode == 0):
+        if(self.mode == 'kinematic'):
+            t=sin(self.frame/60.0)
+
+            q0 = t*.2;
+            h = self.bbvis.h_body;
+            r = self.bbvis.r_roller;
+        
             s = (q0/r, -q0/h-q0/r, q0/h)
-#            s = (q0*30,0,0)
+#            s = (0,q0*30,0)
+#            s = (q0/r, 2*-q0/(h+2*r)-q0/r, 4*q0/h)
             self.bbvis.draw(s)
             self.bbvis.draw_model(self.bbmdl, np.array(s))
-        elif(self.mode == 1):
-            s = (q0/r, 2*-q0/(h+2*r)-q0/r, 4*q0/h)
-            self.bbvis.draw(s)
-            self.bbvis.draw_model(self.bbmdl, np.array(s))
-        elif(self.mode == 2):
-            self.bbmdl.integrate(self.q,self.qdot,np.zeros(2), 1/100.0)
-            self.bbvis.draw([self.q[0], self.q[1], 0])
-            self.bbvis.draw_model(self.bbmdl, self.q)
+
+        elif(self.mode == 'simulate'):
+            self.sim.integrate(self.q,self.qdot,np.zeros(2), 1/30.0)
+            s = np.array([self.q[0], self.q[1], 0])
+        elif(self.mode == 'repl'):
+            i = self.frame%self.repl_state.shape[1]
+            s = self.repl_state[0:2, i]
+            s = np.append(s,0)
+            
+        self.bbvis.draw(s)
+        self.bbvis.draw_model(self.bbmdl, s[:2])            
 
     def on_resize(self, w, h):
         gl.glViewport(0, 0, w, h)
@@ -145,46 +164,60 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
         self.q = np.array([1,-1.])
         self.qdot = np.array([0.,0])
 
+        self.sim = system_model.Simulation(self.bbmdl.model, np.concatenate([self.q, self.qdot]))
+
 
 class Widget(QWidget):
-    def __init__(self):
+    def __init__(self, queue):
         QWidget.__init__(self)
         self.glWidget = MyPygletWidget()
-        self.button = QPushButton('Mode')
-        self.button.clicked.connect(self.change_mode)
+        self.glWidget.queue = queue
+        mode_button = QPushButton('Mode')
+        mode_button.clicked.connect(self.change_mode)
 
+        mode_cbox = QComboBox()
+        mode_cbox.addItem('simulate')
+        mode_cbox.addItem('kinematic')
+        mode_cbox.activated[str].connect(self.change_mode)
+        
         movie_button = QPushButton('Make Movie')
         movie_button.clicked.connect(self.make_movie)
+
+        reset_button = QPushButton('Reset Sim')
+        reset_button.clicked.connect(self.glWidget.reset_sim)
         
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.glWidget)
 
         button_box = QHBoxLayout()
-        button_box.addWidget(self.button)
+        button_box.addWidget(mode_cbox)
+        button_box.addWidget(reset_button)
         button_box.addWidget(movie_button)
 
         self.layout.addLayout(button_box)
         self.setLayout(self.layout)
 
-    def change_mode(self):
-        self.glWidget.mode = (self.glWidget.mode + 1)%3
+    def change_mode(self, new_mode):
+        self.glWidget.mode = new_mode
 
-        if(self.glWidget.mode == 2):
+        if(new_mode == 'simulate'):
             self.glWidget.reset_sim()
 
     def make_movie(self):
         print("movie")
         movie_writer.save_movie(self.glWidget.width(), self.glWidget.height(), self.glWidget.paintGL)
-        
 
-def main():
+def start(queue = None):
     app = QApplication(sys.argv)
     window = QMainWindow()
     window.move(0,0)
     
-    window.setCentralWidget(Widget())
+    window.setCentralWidget(Widget(queue))
     window.show()
     app.exec_()
+
+def main():
+    start()
 
 if __name__ == "__main__":
     main()

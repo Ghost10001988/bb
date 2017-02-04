@@ -1,5 +1,6 @@
 import rbdl
 import numpy as np
+import system_model
 
 from math import *
 
@@ -21,7 +22,7 @@ class BBModel():
         ytrans =rbdl.SpatialTransform()
         ytrans.r = np.array([0,0,0])
         
-        body = rbdl.Body.fromMassComInertia(roller_mass, np.array([0.,0.,0.]), np.diag([roller_moi, roller_moi, 1]))
+        body = rbdl.Body.fromMassComInertia(roller_mass, np.array([0.,0.,0.]), np.diag([1, 1, roller_moi]))
         self.roller = model.AppendBody(rbdl.SpatialTransform(), joint, body)
 
         #define the board (and junk fixed to it)
@@ -32,12 +33,8 @@ class BBModel():
         axis = np.asarray([[0.,0.,1.,roller_rad,0,0]])
         joint = rbdl.Joint.fromJointAxes(axis)
         joint.mReversedPolarity = True
-        body = rbdl.Body.fromMassComInertia(board_mass, np.array([0, 0., 0]), np.eye(3)*.1)
+        body = rbdl.Body.fromMassComInertia(board_mass, np.array([0, 0.5, 0]), np.eye(3)*.1)
         self.board = model.AppendBody(ytrans, joint, body)
-        self.qddot = np.zeros (model.qdot_size)
- 
-    def integrate(self, q, qdot, tau, dt):        
-        rbdl.ForwardDynamics(self.model, q, qdot, tau, self.qddot)
-        q += qdot * dt
-        qdot += self.qddot * dt
+
+#        self.roller = self.board
         

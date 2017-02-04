@@ -69,7 +69,7 @@ class Simulation():
             for i in range(sub_steps):
                 if not self.control is None:
                     self.control.computeU(self.x, self.tau)
-                    print self.tau
+                    print(self.tau)
                 self.integrate(self.x[:self.model.q_size], self.x[self.model.q_size:], self.tau, dt/sub_steps)
 
         self.X = np.concatenate([self.X, X],1)

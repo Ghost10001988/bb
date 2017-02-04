@@ -6,11 +6,11 @@ def draw_mass_center(r, pt):
     x,y = pt
     gl.glPushAttrib(gl.GL_CURRENT_BIT)
     gl.glColor3f(1,1,1)
-    draw_circle(r, (0, 0), filled=True)
+    draw_circle(r, pt, filled=True)
     gl.glColor3f(0,0,0)
-    draw_circle(r, (0, 0), filled=False)
-    draw_arc((r, r), (0,0), (0,pi/2))
-    draw_arc((r, r), (0,0), (pi,3*pi/2))
+    draw_circle(r, pt, filled=False)
+    draw_arc((r, r), pt, (0,pi/2))
+    draw_arc((r, r), pt, (pi,3*pi/2))
     gl.glPopAttrib()
 
 def draw_line(p1, p2):
@@ -28,7 +28,7 @@ def draw_arc(size, pt, angles, n=15, filled = True):
     (x,y) = pt
     (t1,t2) = angles
     graphics.draw(n+1, gl.GL_POLYGON if filled else gl.GL_LINE_STRIP,
-                  ('v2f', sum([(cos(n)*r1+x,sin(n)*r2+y) for n in linspace(t1, t2, n)] + [(0,0)],())))
+                  ('v2f', sum([(cos(n)*r1+x,sin(n)*r2+y) for n in linspace(t1, t2, n)] + [(x,y)],())))
 
 def draw_rect(pt1, pt2):
     (x0, y0) = pt1
