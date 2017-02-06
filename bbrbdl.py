@@ -28,13 +28,23 @@ class BBModel():
         #define the board (and junk fixed to it)
         board_mass = 1
 
-        print(roller_mass, board_mass)
+        print("Masses: ", roller_mass, board_mass)
 
         axis = np.asarray([[0.,0.,1.,roller_rad,0,0]])
         joint = rbdl.Joint.fromJointAxes(axis)
         joint.mReversedPolarity = True
         body = rbdl.Body.fromMassComInertia(board_mass, np.array([0, 0.5, 0]), np.eye(3)*.1)
         self.board = model.AppendBody(ytrans, joint, body)
+
+        body_height = 0.6
+        body_mass = 3
+        body_moi = body_mass * 0.5 * 0.2**2
+        
+        axis = np.asarray([[0,0,1.0,0,0,0]])
+        joint = rbdl.Joint.fromJointAxes(axis)
+        body = rbdl.Body.fromMassComInertia(body_mass, np.array([0., 0, 0]), np.eye(3) * body_moi)
+        ytrans.r = np.array([0,body_height,0])
+        self.body = model.AppendBody(ytrans, joint, body)
 
 #        self.roller = self.board
         

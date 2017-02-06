@@ -44,8 +44,15 @@ class LinearSystemApproximator():
         
         return ss
 
+def stateLimits(minNorm = 1e-2, maxNorm = 1e2):
+    def predicate(x):
+        norm = np.linalg.norm(x)
+        return minNorm < norm and maxNorm > norm
+    return predicate    
+    
 class Simulation():
     def __init__(self, model, x0, control = None):
+        assert(x0.size == model.q_size + model.qdot_size)
         self.model = model
         self.x0 = np.copy(x0)
         self.x = np.copy(x0)
@@ -69,10 +76,16 @@ class Simulation():
             for i in range(sub_steps):
                 if not self.control is None:
                     self.control.computeU(self.x, self.tau)
-                    print(self.tau)
                 self.integrate(self.x[:self.model.q_size], self.x[self.model.q_size:], self.tau, dt/sub_steps)
 
         self.X = np.concatenate([self.X, X],1)
+        return self.X
+    
+    def simUntil(self, predicate = stateLimits(), tMax = 10 ):
+        t = 0
+        while t < tMax and predicate(self.x):
+            self.sim(0.5)
+            t += 0.5
         return self.X
     
     def integrate(self, q, qdot, tau, dt):        
@@ -81,5 +94,5 @@ class Simulation():
         qdot += self.qddot * dt
 
     def reset(self):
-        self.X = np.empty([self.x0.size,0])
-        self.x = self.x0
+        self.X = np.zeros([self.x0.size,0])
+        self.x = np.copy(self.x0)

@@ -22,7 +22,7 @@ class BBVisual():
     def __init__(self):
         self.r_roller = .05;
         self.l_board = .5;
-        self.h_body = .6;
+        self.h_body = .55;
         self.zero = np.array([0.,0,0])
         self.unit_y = np.array([0.,.2,0])
 
@@ -54,10 +54,21 @@ class BBVisual():
         pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.unit_y, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
 
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.board, self.zero, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, self.zero, update_kinematics = False)
+        draw_line(pt0[0:2], pt1[0:2])        
+
+        gl.glColor3f(0,1,0)
+        pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, self.zero, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, self.unit_y, update_kinematics = False)
+        draw_line(pt0[0:2], pt1[0:2])        
+
         com = np.array([-1.0,-1,-1.])
         draw_mass_center( .1, com[0:2] )
         
     def draw(self, state = [0,0,0]):
+        gl.glEnable (gl.GL_LINE_SMOOTH);                                                     
+        gl.glHint (gl.GL_LINE_SMOOTH_HINT, gl.GL_NICEST)     
         gl.glLoadIdentity()
         gl.glLineWidth(1)
         gl.glColor3f(.7,.7,.7)
@@ -99,7 +110,7 @@ class BBVisual():
         draw_rect((-.01,0), (.01,self.h_body))
 
         gl.glTranslatef(0, self.h_body, 0)
-        gl.glRotatef(-R2D*state[2], 0, 0, 1)
+        gl.glRotatef(R2D*state[2], 0, 0, 1)
         gl.glColor3f(0,0,0);
         draw_mass_center(.1, (0,0))
 
@@ -110,15 +121,17 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
         self.setMinimumSize(QtCore.QSize(800, 600))
         self.bbvis = BBVisual()
         self.mode = 'simulate'
-        self.frame = 0
         self.bbmdl = BBModel()
-        self.reset_sim()
+        self.reset()
 
     def on_draw(self):
+        global window
         if not self.queue is None:
             try:
                 self.repl_state = self.queue.get_nowait()
-                self.mode = 'repl'
+                self.combobox.setCurrentIndex(self.combobox.findText('repl link'))
+                window.raise_()
+                window.activateWindow()
                 self.queue.task_done()
             except Empty:
                 pass
@@ -135,19 +148,16 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
             s = (q0/r, -q0/h-q0/r, q0/h)
 #            s = (0,q0*30,0)
 #            s = (q0/r, 2*-q0/(h+2*r)-q0/r, 4*q0/h)
-            self.bbvis.draw(s)
-            self.bbvis.draw_model(self.bbmdl, np.array(s))
 
         elif(self.mode == 'simulate'):
-            self.sim.integrate(self.q,self.qdot,np.zeros(2), 1/30.0)
+            self.sim.integrate(self.q,self.qdot,np.zeros(self.qdot.size), 1/30.0)
             s = np.array([self.q[0], self.q[1], 0])
-        elif(self.mode == 'repl'):
+        elif(self.mode == 'repl link'):
             i = self.frame%self.repl_state.shape[1]
-            s = self.repl_state[0:2, i]
-            s = np.append(s,0)
+            s = np.copy(self.repl_state[:, i])
             
         self.bbvis.draw(s)
-        self.bbvis.draw_model(self.bbmdl, s[:2])            
+        self.bbvis.draw_model(self.bbmdl, np.asarray(s[:self.bbmdl.model.q_size]))            
 
     def on_resize(self, w, h):
         gl.glViewport(0, 0, w, h)
@@ -160,11 +170,12 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
         gl.gluOrtho2D(-vw, vw, -vh+.9*vh, vh+.9*vh)
         gl.glMatrixMode(gl.GL_MODELVIEW)
 
-    def reset_sim(self):
-        self.q = np.array([1,-1.])
-        self.qdot = np.array([0.,0])
+    def reset(self):
+        self.q = np.array([1,-1.,0])
+        self.qdot = np.zeros(self.q.size)
 
         self.sim = system_model.Simulation(self.bbmdl.model, np.concatenate([self.q, self.qdot]))
+        self.frame = 0
 
 
 class Widget(QWidget):
@@ -178,13 +189,16 @@ class Widget(QWidget):
         mode_cbox = QComboBox()
         mode_cbox.addItem('simulate')
         mode_cbox.addItem('kinematic')
-        mode_cbox.activated[str].connect(self.change_mode)
+        mode_cbox.addItem('repl link')
+        mode_cbox.currentIndexChanged[str].connect(self.change_mode)
+
+        self.glWidget.combobox = mode_cbox
         
         movie_button = QPushButton('Make Movie')
         movie_button.clicked.connect(self.make_movie)
 
-        reset_button = QPushButton('Reset Sim')
-        reset_button.clicked.connect(self.glWidget.reset_sim)
+        reset_button = QPushButton('Reset')
+        reset_button.clicked.connect(self.glWidget.reset)
         
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.glWidget)
@@ -201,16 +215,18 @@ class Widget(QWidget):
         self.glWidget.mode = new_mode
 
         if(new_mode == 'simulate'):
-            self.glWidget.reset_sim()
+            self.glWidget.reset()
 
     def make_movie(self):
         print("movie")
         movie_writer.save_movie(self.glWidget.width(), self.glWidget.height(), self.glWidget.paintGL)
 
 def start(queue = None):
+    global window
     app = QApplication(sys.argv)
     window = QMainWindow()
     window.move(0,0)
+    window.setWindowTitle("Bongo Board")
     
     window.setCentralWidget(Widget(queue))
     window.show()
