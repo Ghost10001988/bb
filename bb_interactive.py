@@ -15,7 +15,7 @@ class BBInteractive():
         t.start()
 
     def show_state(self, q):
-            self.queue.put(q)
+        self.queue.put(q)
 
 def begin():
     return BBInteractive()
@@ -26,3 +26,5 @@ def show_mode(x, amp = 1, n = 60):
         X[:,i] = math.sin(i/float(n)*2.*np.pi) * x
     return X
 
+if __name__== "__main__":
+    BB = begin()

@@ -4,10 +4,16 @@ import system_model
 
 from math import *
 
+class BBParams():
+    def __init__(self):
+        self.r_roller = 0.05
+        self.h_body = 0.4
+        self.use_second_mass = False
+
 class BBModel():
 
-    def __init__(self):
-        roller_rad = .05
+    def __init__(self, bb_params):
+        roller_rad = bb_params.r_roller
         density = 100
         self.model = rbdl.Model()
         model = self.model
@@ -36,15 +42,30 @@ class BBModel():
         body = rbdl.Body.fromMassComInertia(board_mass, np.array([0, 0.5, 0]), np.eye(3)*.1)
         self.board = model.AppendBody(ytrans, joint, body)
 
-        body_height = 0.6
+        body_height = bb_params.h_body
         body_mass = 3
-        body_moi = body_mass * 0.5 * 0.2**2
-        
-        axis = np.asarray([[0,0,1.0,0,0,0]])
-        joint = rbdl.Joint.fromJointAxes(axis)
-        body = rbdl.Body.fromMassComInertia(body_mass, np.array([0., 0, 0]), np.eye(3) * body_moi)
-        ytrans.r = np.array([0,body_height,0])
-        self.body = model.AppendBody(ytrans, joint, body)
+        body_moi = body_mass * 0.5 * 0.3**2
+
+        if(bb_params.use_second_mass):
+            axis = np.asarray([[0,0,1.0,0,0,0]])
+            joint = rbdl.Joint.fromJointAxes(axis)
+            body = rbdl.Body.fromMassComInertia(body_mass, np.array([0, .0, 0]), np.eye(3) * body_moi)
+            ytrans.r = np.array([0,body_height,0])
+            self.body = model.AppendBody(ytrans, joint, body)
+
+            ## Second Spinner
+
+            axis = np.asarray([[0,0,1.0,0,0,0]])
+            joint = rbdl.Joint.fromJointAxes(axis)
+            body = rbdl.Body.fromMassComInertia(body_mass, np.array([0, -body_height+.05, 0]), np.eye(3) * body_moi/4.0)
+            ytrans.r = np.array([0,body_height,0])
+            self.body2 = model.AddBody(self.board, ytrans, joint, body)
+        else:
+            axis = np.asarray([[0,0,1.0,0,0,0]])
+            joint = rbdl.Joint.fromJointAxes(axis)
+            body = rbdl.Body.fromMassComInertia(body_mass, np.array([0, 0., 0]), np.eye(3) * body_moi)
+            ytrans.r = np.array([0,body_height,0])
+            self.body = model.AppendBody(ytrans, joint, body)                    
 
 #        self.roller = self.board
         

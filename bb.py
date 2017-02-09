@@ -10,7 +10,7 @@ import numpy as np
 from math import *
 from graphics import *
 import time
-from bbrbdl import BBModel
+from bbrbdl import BBModel, BBParams
 import rbdl
 import queue
 from queue import Empty
@@ -19,10 +19,11 @@ import system_model
 R2D = 360/(2*pi)
 
 class BBVisual():
-    def __init__(self):
-        self.r_roller = .05;
+    def __init__(self, bb_params):
+        self.r_roller = bb_params.r_roller;
         self.l_board = .5;
-        self.h_body = .55;
+        self.h_body = bb_params.h_body - bb_params.r_roller;
+        self.h_body2 = .25;
         self.zero = np.array([0.,0,0])
         self.unit_y = np.array([0.,.2,0])
 
@@ -37,7 +38,6 @@ class BBVisual():
         pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero, update_kinematics = False)
         pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.unit_y, update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])
-
 
         gl.glColor3f(0,0,1)
         pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.roller, self.zero, update_kinematics = False)
@@ -60,11 +60,17 @@ class BBVisual():
 
         gl.glColor3f(0,1,0)
         pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, self.zero, update_kinematics = False)
-        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, self.unit_y, update_kinematics = False)
+        pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body, np.asarray([0,.1,0]), update_kinematics = False)
         draw_line(pt0[0:2], pt1[0:2])        
 
-        com = np.array([-1.0,-1,-1.])
-        draw_mass_center( .1, com[0:2] )
+        try:
+            gl.glColor3f(0,0,1)
+            pt0 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body2, self.zero, update_kinematics = False)
+            pt1 = rbdl.CalcBodyToBaseCoordinates(mdl, q, bbmdl.body2, np.asarray([0,-self.h_body + self.r_roller + .05,0]), update_kinematics = False)
+            draw_line(pt0[0:2], pt1[0:2])
+
+        except AttributeError:
+            pass
         
     def draw(self, state = [0,0,0]):
         gl.glEnable (gl.GL_LINE_SMOOTH);                                                     
@@ -109,19 +115,31 @@ class BBVisual():
         gl.glColor3f(.5,.5,.5)
         draw_rect((-.01,0), (.01,self.h_body))
 
+        gl.glPushMatrix()
         gl.glTranslatef(0, self.h_body, 0)
         gl.glRotatef(R2D*state[2], 0, 0, 1)
         gl.glColor3f(0,0,0);
         draw_mass_center(.1, (0,0))
+        gl.glPopMatrix()
 
+        if len(state) >= 8:
+            gl.glPushMatrix()            
+            gl.glTranslatef(0, self.h_body, 0)
+            gl.glRotatef(R2D*state[3], 0, 0, 1)
+            gl.glTranslatef(0, -self.h_body+self.r_roller+.05, 0)
+            gl.glColor3f(0,0,0);
+            draw_mass_center(.03, (0,0))
+            gl.glPopMatrix()
+        
         gl.glPopMatrix();
     
 class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
     def on_init(self):
+        bb_params = BBParams()
         self.setMinimumSize(QtCore.QSize(800, 600))
-        self.bbvis = BBVisual()
+        self.bbvis = BBVisual(bb_params)
         self.mode = 'simulate'
-        self.bbmdl = BBModel()
+        self.bbmdl = BBModel(bb_params)
         self.reset()
 
     def on_draw(self):
@@ -145,13 +163,13 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
             h = self.bbvis.h_body;
             r = self.bbvis.r_roller;
         
-            s = (q0/r, -q0/h-q0/r, q0/h)
+            s = (q0/r, -q0/h-q0/r, q0/h, 0)
 #            s = (0,q0*30,0)
 #            s = (q0/r, 2*-q0/(h+2*r)-q0/r, 4*q0/h)
 
         elif(self.mode == 'simulate'):
             self.sim.integrate(self.q,self.qdot,np.zeros(self.qdot.size), 1/30.0)
-            s = np.array([self.q[0], self.q[1], 0])
+            s = self.q
         elif(self.mode == 'repl link'):
             i = self.frame%self.repl_state.shape[1]
             s = np.copy(self.repl_state[:, i])
@@ -171,7 +189,9 @@ class MyPygletWidget(qpw.qpygletwidget.QPygletWidget):
         gl.glMatrixMode(gl.GL_MODELVIEW)
 
     def reset(self):
-        self.q = np.array([1,-1.,0])
+        self.q = np.zeros(self.bbmdl.model.q_size)
+        self.q[0] = -.01
+        self.q[1] = .01
         self.qdot = np.zeros(self.q.size)
 
         self.sim = system_model.Simulation(self.bbmdl.model, np.concatenate([self.q, self.qdot]))
@@ -219,7 +239,12 @@ class Widget(QWidget):
 
     def make_movie(self):
         print("movie")
-        movie_writer.save_movie(self.glWidget.width(), self.glWidget.height(), self.glWidget.paintGL)
+        if self.glWidget.mode == "repl link":
+            total_frames = self.glWidget.repl_state.shape[1]
+            self.glWidget.frame = 0
+        else:
+            total_frames = 300
+        movie_writer.save_movie(self.glWidget.width(), self.glWidget.height(), self.glWidget.paintGL, total_frames )
 
 def start(queue = None):
     global window

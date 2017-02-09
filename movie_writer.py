@@ -6,7 +6,7 @@ import pyglet
 # don't draw any axis stuff ... thanks to @Joe Kington for this trick
 # http://stackoverflow.com/questions/14908576/how-to-remove-frame-from-matplotlib-pyplot-figure-vs-matplotlib-figure-frame
 
-def save_movie(canvas_width, canvas_height, get_next_frame):
+def save_movie(canvas_width, canvas_height, get_next_frame, total_frames):
     print("movie")
 # Open an ffmpeg process
     outf = 'ffmpeg.mp4'
@@ -15,14 +15,20 @@ def save_movie(canvas_width, canvas_height, get_next_frame):
                  '-s', '%dx%d' % (canvas_width, canvas_height), # size of image string
                  '-pix_fmt', 'argb', # format
                  '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
-                 '-vcodec', 'mpeg4', outf) # output encoding
+                 #                 '-vcodec', 'mpeg4',
+                 #'-q:v', '1',
+                 '-c:v', 'libx264',
+                 '-preset', 'slow',
+                 '-crf', '20',
+                 '-tune','animation',
+                 outf) # output encoding
     p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
     # Draw 1000 frames and write to the pipe
 
     buffers = pyglet.image.get_buffer_manager()
     
     
-    for frame in range(100):
+    for frame in range(total_frames):
         # draw the frame
         get_next_frame()
 
