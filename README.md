@@ -1,2 +1,2 @@
 # bb
-Python BB control E sim
+Python BB control Ghost E sim
